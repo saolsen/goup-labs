@@ -79,12 +79,15 @@
   (turtle-rotation true turtle-state))
 
 (defmethod interpret :push-stack [_ turtle-state]
-  (update-in turtle-state :stack conj (:position turtle-state)))
+  (update-in turtle-state [:stack] conj {:position (:position turtle-state)
+                                         :direction (:direction turtle-state)}))
 
 (defmethod interpret :pop-stack [_ turtle-state]
-  (let [stack (:stack turtle-state)]
+  (let [stack (:stack turtle-state)
+        {:keys [position direction]} (first stack)]
     (assoc turtle-state
-      :position (first stack)
+      :position position
+      :direction direction
       :stack (rest stack))))
 
 (defn calculate-bounding-box
@@ -181,14 +184,14 @@
       :size [800 600])))
 
 (defn display-with-steps
-  [input rules steps]
+  [input rules steps angle]
   ;; angle 90
   (let [result (loop [s input
                       step steps]
                  (if (> step 0)
                    (recur (lstep s rules) (dec step))
                    s))]
-    (display result 45)))
+    (display result angle)))
 
 ;;(when draw?
 ;;  (q/line x y nx ny))
