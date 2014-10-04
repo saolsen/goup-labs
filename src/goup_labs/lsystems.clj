@@ -12,6 +12,7 @@
 
 ;; Math stuff
 (defn round2
+  "Rounds a number to two decimal places."
   [n]
   (/ (Math/round (* n 100)) 100))
 
@@ -49,6 +50,7 @@
               {:char char}))))
 
 (defn turtle-line-segment
+  "Turtle graphics line segment helper."
   [draw? {:keys [position direction] :as turtle-state}]
   (let [[x y] position
         [dx dy] direction
@@ -60,15 +62,25 @@
       (update-in updated [:segments] conj [x y] [nx ny])
       updated)))
 
-#{:position :direction :angle :bounding-box :segments}
-
 (defn turtle-rotation
+  "Turtle graphics rotation helper."
   [counterclockwise? turtle-state]
   (let [ang (:angle turtle-state)
         theta (if counterclockwise? ang (- ang))]
     (update-in turtle-state [:direction] rotate theta)))
 
-(defmulti interpret turtle-case)
+(defmulti interpret
+  "Takes a character and a turtle-graphics state and returns the next
+   turtle graphics state. Characters are interpreted via the following
+   rules.
+
+   Upper case letters mean draw a line segment.
+   Lower case letters mean move forward a line segment without drawing.
+   + means rotate counterclockwise.
+   - means rotate clockwise.
+   [ means save current state onto stack
+   ] means pop last saved state off of stack"
+  turtle-case)
 
 (defmethod interpret :draw-line-segment [_ turtle-state]
   (turtle-line-segment true turtle-state))
@@ -96,6 +108,11 @@
 
 (defn calculate-bounding-box
   [segments]
+  "Takes a sequence of vectors and returns a vector representing the
+   bounding box.
+   [a b c d] where
+   [a b] is the upper left corner and
+   [c d] is the lower right corner."
   (reduce
     (fn [[a b c d] [x y]]
       [(min a x)
@@ -106,8 +123,8 @@
     segments))
 
 (defn calculate-position-transform
-  "Computes the transformation matrix to project the drawn l system to be
-   displayed with passed in width and height at x y."
+  "Computes the transformation matrix to translate the drawn l system with
+   passed in bounding box to be displayed at x y."
   [x y [tlx tly _ _]]
   (let [movex (- x tlx)
         movey (- y tly)]
@@ -117,7 +134,9 @@
      [0 0 1    ]]))
 
 (defn calculate-scaling-transform
-  "Computers the other one"
+  "Computes the transformation matrix to scale the drawn l system with
+   passed in bounding box to be as big as possible within width X height
+   but scaled uniformly."
   [width height [_ _ brx bry]]
   (let [scalex (/ width brx)
         scaley (/ height bry)
@@ -127,6 +146,8 @@
      [0     0     1]]))
 
 (defn calculate-centering-transform
+  "Computes the transformation matrix to translate the drawn l system with
+   passed in bounding box to be centered in a width height box."
   [width height [tlx tly brx bry]]
   (let [movex (/ (- width (- brx tlx)) 2)
         movey (/ (- height (- bry tly)) 2)]
@@ -135,13 +156,15 @@
      [0 0 1    ]]))
 
 (defn transform-point
+  "Multiplies a vector by a transformation matrix."
   [transform [x y]]
   (let [transformed (mat/mmul transform [x y 1])]
     (take 2 transformed)))
 
-;; This is very expensive, should do all this with 1 matrix multiplication.
 ;; TODO: combine transforms to one multiplication.
 (defn processing-draw-turtle
+  "Draws the l system turtle in processing. Must be called from the processing
+   thread in a setup or draw function."
   [turtle-state x y width height]
   (let [segments (:segments turtle-state)
         ;; Move to [0 0]
@@ -155,21 +178,14 @@
         ;; Center in viewport.
         final-bounds (calculate-bounding-box scaled-points)
         center-transform (calculate-centering-transform width height final-bounds)
-        points (map #(transform-point center-transform %) scaled-points)
-        ]
+        points (map #(transform-point center-transform %) scaled-points)]
     ;; Scale the viewport so that this drawing will be centered.
     (doseq [[[a b] [c d]] (partition 2 points)]
       (q/line a b c d))))
 
 (defn display
-  "Displays the l system string as a turtle graphics interpretation of the
-   characters.
-   Upper case letters mean draw a line segment.
-   Lower case letters mean move forward a line segment without drawing.
-   + means rotate counterclockwise by angle.
-   - means rotate clockwise by angle.
-   [ means save current location onto stack
-   ] means pop last saved location off of stack
+  "Displays the l system string as a 2d turtle graphics interpretation of the
+   characters in a processing sketch. Returns the processing sketch.
    "
   [s angle]
   (letfn [(setup []
@@ -187,8 +203,10 @@
       :size [800 600])))
 
 (defn display-with-steps
+  "Takes the initial string input, a map of substitution rules, the number
+   of steps to run the lsystem and the rotation angle and returns a processing
+   sketch that displays the l system after steps substitutions."
   [input rules steps angle]
-  ;; angle 90
   (let [result (loop [s input
                       step steps]
                  (if (> step 0)
@@ -196,6 +214,7 @@
                    s))]
     (display result angle)))
 
+;; Examples
 (comment
   ;; A Cool Tree
   (display-with-steps "FX" {"X" "CF-[C[X]+CX]+CF[C+FX]-X" "F" "FF"} 6 25)
