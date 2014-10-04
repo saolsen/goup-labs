@@ -176,8 +176,7 @@
                          #(interpret %2 %1)
                          (base-turtle-state angle)
                          s)]
-                   (processing-draw-turtle turtle 0 0 798 598)
-                   ))]
+                   (processing-draw-turtle turtle 0 0 798 598)))]
     (q/sketch
       :title "L System"
       :setup setup
@@ -193,5 +192,13 @@
                    s))]
     (display result angle)))
 
-;;(when draw?
-;;  (q/line x y nx ny))
+(comment
+  ;; A Cool Tree
+  (display-with-steps "FX" {"X" "CF-[C[X]+CX]+CF[C+FX]-X" "F" "FF"} 6 25)
+  ;; Another Tree
+  (display-with-steps "FX" {"F" "CFF-[C-F+F]+[C+F-F]" "X" "CFF+[C+F]+[C-F]"} 4 25)
+  ;; Dragon Curve
+  (display-with-steps "FX" {"X" "X+YF+" "Y" "-FX-Y"} 13 90)
+  ;; Diamond Thingy
+  (display-with-steps "L--F--L--F" {"L" "+R-F-R+" "R" "-L+F+L-"} 8 45)
+  )
