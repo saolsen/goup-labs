@@ -28,7 +28,7 @@
 (defn base-turtle-state [angle]
   {:angle     angle
    :position  [0 0]
-   :direction [1 0]
+   :direction [0 -1]
    :stack     (list)
    :segments  []})
 
@@ -113,25 +113,43 @@
   "Computers the other one"
   [width height [_ _ brx bry]]
   (let [scalex (/ width brx)
-        scaley (/ height bry)]
-    [[scalex 0      0]
-     [0      scaley 0]
-     [0      0      1]]))
+        scaley (/ height bry)
+        scale (min scalex scaley)]
+    [[scale 0     0]
+     [0     scale 0]
+     [0     0     1]]))
+
+(defn calculate-centering-transform
+  [width height [tlx tly brx bry]]
+  (let [movex (/ (- width (- brx tlx)) 2)
+        movey (/ (- height (- bry tly)) 2)]
+    [[1 0 movex]
+     [0 1 movey]
+     [0 0 1    ]]))
 
 (defn transform-point
   [transform [x y]]
   (let [transformed (mat/mmul transform [x y 1])]
     (take 2 transformed)))
 
+;; This is very expensive, should do all this with 1 matrix multiplication.
+;; TODO: combine transforms to one multiplication.
 (defn processing-draw-turtle
   [turtle-state x y width height]
   (let [segments (:segments turtle-state)
+        ;; Move to [0 0]
         bounding-box (calculate-bounding-box segments)
         move-transform (calculate-position-transform x y bounding-box)
         moved-points (map #(transform-point move-transform %) segments)
+        ;; Scale to display size
         new-bounds (calculate-bounding-box moved-points)
         scale-transform (calculate-scaling-transform width height new-bounds)
-        points (map #(transform-point scale-transform %) moved-points)]
+        scaled-points (map #(transform-point scale-transform %) moved-points)
+        ;; Center in viewport.
+        final-bounds (calculate-bounding-box scaled-points)
+        center-transform (calculate-centering-transform width height final-bounds)
+        points (map #(transform-point center-transform %) scaled-points)
+        ]
     ;; Scale the viewport so that this drawing will be centered.
     (doseq [[[a b] [c d]] (partition 2 points)]
       (q/line a b c d))))
@@ -155,7 +173,7 @@
                          #(interpret %2 %1)
                          (base-turtle-state angle)
                          s)]
-                   (processing-draw-turtle turtle 0 0 800 600)
+                   (processing-draw-turtle turtle 0 0 798 598)
                    ))]
     (q/sketch
       :title "L System"
@@ -170,7 +188,7 @@
                  (if (> step 0)
                    (recur (lstep s rules) (dec step))
                    s))]
-    (display result 90)))
+    (display result 45)))
 
 ;;(when draw?
 ;;  (q/line x y nx ny))
