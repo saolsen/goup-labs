@@ -177,7 +177,8 @@
         scaled-points (map #(transform-point scale-transform %) moved-points)
         ;; Center in viewport.
         final-bounds (calculate-bounding-box scaled-points)
-        center-transform (calculate-centering-transform width height final-bounds)
+        center-transform (calculate-centering-transform width height
+                                                        final-bounds)
         points (map #(transform-point center-transform %) scaled-points)]
     ;; Scale the viewport so that this drawing will be centered.
     (doseq [[[a b] [c d]] (partition 2 points)]
@@ -217,13 +218,17 @@
 ;; Examples
 (comment
   ;; A Cool Tree
-  (display-with-steps "FX" {"X" "CF-[C[X]+CX]+CF[C+FX]-X" "F" "FF"} 6 25)
+  (display-with-steps "FX" {"X" "CF-[C[X]+CX]+CF[C+FX]-X"
+                            "F" "FF"} 6 25)
   ;; Another Tree
-  (display-with-steps "FX" {"F" "CFF-[C-F+F]+[C+F-F]" "X" "CFF+[C+F]+[C-F]"} 4 25)
+  (display-with-steps "FX" {"F" "CFF-[C-F+F]+[C+F-F]"
+                            "X" "CFF+[C+F]+[C-F]"} 4 25)
   ;; Dragon Curve
-  (display-with-steps "FX" {"X" "X+YF+" "Y" "-FX-Y"} 13 90)
+  (display-with-steps "FX" {"X" "X+YF+"
+                            "Y" "-FX-Y"} 13 90)
   ;; Diamond Thingy
-  (display-with-steps "L--F--L--F" {"L" "+R-F-R+" "R" "-L+F+L-"} 8 45)
+  (display-with-steps "L--F--L--F" {"L" "+R-F-R+"
+                                    "R" "-L+F+L-"} 8 45)
   ;; Triangle Thingy
   (display-with-steps "-F" {"F" "F+F-F-F+F"} 4 90)
   ;; One with Skips, This one is dope!
