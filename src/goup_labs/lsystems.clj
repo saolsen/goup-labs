@@ -3,7 +3,7 @@
             [clojure.core.matrix :as mat]))
 
 ;; The Lsystem code itself is tiny
-(defn lstep
+(defn lsystem
   "Takes a string and a map of strings to strings of replacements.
    The key for the replacement must only be 1 character.
    "
@@ -42,7 +42,11 @@
     (= char \+) :rotate-counterclockwise
     (= char \-) :rotate-clockwise
     (Character/isUpperCase char) :draw-line-segment
-    (Character/isLowerCase char) :move-line-segment))
+    (Character/isLowerCase char) :move-line-segment
+    :else (throw
+            (ex-info
+              (str "Error: No turtle interpretation for character " char)
+              {:char char}))))
 
 (defn turtle-line-segment
   [draw? {:keys [position direction] :as turtle-state}]
@@ -188,7 +192,7 @@
   (let [result (loop [s input
                       step steps]
                  (if (> step 0)
-                   (recur (lstep s rules) (dec step))
+                   (recur (lsystem s rules) (dec step))
                    s))]
     (display result angle)))
 
@@ -201,4 +205,13 @@
   (display-with-steps "FX" {"X" "X+YF+" "Y" "-FX-Y"} 13 90)
   ;; Diamond Thingy
   (display-with-steps "L--F--L--F" {"L" "+R-F-R+" "R" "-L+F+L-"} 8 45)
-  )
+  ;; Triangle Thingy
+  (display-with-steps "-F" {"F" "F+F-F-F+F"} 4 90)
+  ;; One with Skips, This one is dope!
+  (display-with-steps "F+F+F+F" {"F" "F+f-FF+F+FF+Ff+FF-f+FF-F-FF-Ff-FFF"
+                                 "f" "ffffff"} 2 90)
+  ;; Neat pentagons star
+  (display-with-steps "F-F-F-F-F" {"F" "F-F++F+F-F-F"} 4 72)
+
+
+)
