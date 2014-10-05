@@ -1,6 +1,7 @@
 (ns goup-labs.lsystems
   (:require [quil.core :as q]
-            [clojure.core.matrix :as mat]))
+            [clojure.core.matrix :as mat]
+            [instaparse.core :as insta]))
 
 ;; The Lsystem code itself is tiny
 (defn lsystem
@@ -33,21 +34,36 @@
    :stack     (list)
    :segments  []})
 
+(def turtle-parser
+  (insta/parser (clojure.java.io/resource "turtle-parser.bnf")))
+
+(defn wrap-op
+  [case]
+  (let [op (first case)
+        result {:op op}]
+    (if (= op :set-color)
+      (assoc result :color (second case))
+      result)))
+
+(defn parse-string
+  "Parses the lsystem string into turtle commands."
+  [str]
+  (insta/transform
+    {:CASE wrap-op
+     :set-color (fn [_ n] [:set-color (Integer/parseInt n)])}
+    (turtle-parser str)))
+
 (defn turtle-case
   "Returns the turtle graphics command for a given character."
   [char _]
-  (cond
-    (nil? char) :done
-    (= char \[) :push-stack
-    (= char \]) :pop-stack
-    (= char \+) :rotate-counterclockwise
-    (= char \-) :rotate-clockwise
-    (Character/isUpperCase char) :draw-line-segment
-    (Character/isLowerCase char) :move-line-segment
-    :else (throw
-            (ex-info
-              (str "Error: No turtle interpretation for character " char)
-              {:char char}))))
+  (condp = char
+    \[ :push-stack
+    \] :pop-stack
+    \+ :rotate-counterclockwise
+    \- :rotate-clockwise
+    \F :draw-line-segment
+    \f :move-line-segment
+    :no-op))
 
 (defn turtle-line-segment
   "Turtle graphics line segment helper."
@@ -105,6 +121,9 @@
       :position position
       :direction direction
       :stack (rest stack))))
+
+(defmethod interpret :no-op [_ turtle-state]
+  turtle-state)
 
 (defn calculate-bounding-box
   [segments]
@@ -218,11 +237,11 @@
 ;; Examples
 (comment
   ;; A Cool Tree
-  (display-with-steps "FX" {"X" "CF-[C[X]+CX]+CF[C+FX]-X"
+  (display-with-steps "FX" {"X" "F-[[X]+X]+F[+FX]-X"
                             "F" "FF"} 6 25)
   ;; Another Tree
-  (display-with-steps "FX" {"F" "CFF-[C-F+F]+[C+F-F]"
-                            "X" "CFF+[C+F]+[C-F]"} 4 25)
+  (display-with-steps "FX" {"F" "FF-[-F+F]+[+F-F]"
+                            "X" "FF+[+F]+[-F]"} 4 25)
   ;; Dragon Curve
   (display-with-steps "FX" {"X" "X+YF+"
                             "Y" "-FX-Y"} 13 90)
@@ -231,11 +250,14 @@
                                     "R" "-L+F+L-"} 8 45)
   ;; Triangle Thingy
   (display-with-steps "-F" {"F" "F+F-F-F+F"} 4 90)
+
   ;; One with Skips, This one is dope!
   (display-with-steps "F+F+F+F" {"F" "F+f-FF+F+FF+Ff+FF-f+FF-F-FF-Ff-FFF"
                                  "f" "ffffff"} 2 90)
   ;; Neat pentagons star
   (display-with-steps "F-F-F-F-F" {"F" "F-F++F+F-F-F"} 4 72)
 
+  ;; Tree with colors TODO: color support
+  (display-with-steps "F" {"F" "C0FF-[C1-F+F+F]+[C2+F-F-F]"} 5 22)
 
 )

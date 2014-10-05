@@ -1,0 +1,10 @@
+S = CASE*
+CASE = push-stack | pop-stack | rotate-clockwise | rotate-counterclockwise | draw-line-segment | move-line-segment | set-color | no-op
+push-stack = "["
+pop-stack = "]"
+rotate-clockwise = "-"
+rotate-counterclockwise = "+"
+draw-line-segment = "F"
+move-line-segment = "f"
+set-color = "C" #'[0-9]'*
+no-op = #'[a-eg-zA-BD-EG-Z]'
