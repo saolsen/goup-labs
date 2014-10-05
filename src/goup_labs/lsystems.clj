@@ -32,7 +32,8 @@
    :position  [0 0]
    :direction [0 -1]
    :stack     (list)
-   :segments  []})
+   :segments  []
+   :color     -1})
 
 (def turtle-parser
   (insta/parser (clojure.java.io/resource "turtle-parser.bnf")))
@@ -56,7 +57,7 @@
 
 (defn turtle-line-segment
   "Turtle graphics line segment helper."
-  [draw? {:keys [position direction] :as turtle-state}]
+  [draw? {:keys [position direction color] :as turtle-state}]
   (let [[x y] position
         [dx dy] direction
         nx (+ x dx)
@@ -64,7 +65,9 @@
         updated (assoc turtle-state
                   :position [nx ny])]
     (if draw?
-      (update-in updated [:segments] conj [x y] [nx ny])
+      (update-in updated [:segments] conj
+                 {:points [x y nx ny]
+                  :color (:color turtle-state)})
       updated)))
 
 (defn turtle-rotation
@@ -101,39 +104,40 @@
 
 (defmethod interpret :push-stack [_ turtle-state]
   (update-in turtle-state [:stack] conj {:position (:position turtle-state)
-                                         :direction (:direction turtle-state)}))
+                                         :direction (:direction turtle-state)
+                                         :color (:color turtle-state)}))
 
 (defmethod interpret :pop-stack [_ turtle-state]
   (let [stack (:stack turtle-state)
-        {:keys [position direction]} (first stack)]
+        {:keys [position direction color]} (first stack)]
     (assoc turtle-state
       :position position
       :direction direction
+      :color color
       :stack (rest stack))))
 
 (defmethod interpret :set-color [{:keys [color]} turtle-state]
-  ;TODO
-  turtle-state
-  )
+  (assoc turtle-state :color color))
 
 (defmethod interpret :no-op [_ turtle-state]
   turtle-state)
 
 (defn calculate-bounding-box
-  [segments]
-  "Takes a sequence of vectors and returns a vector representing the
+  [lines]
+  "Takes a sequence of line segments and returns a vector representing the
    bounding box.
    [a b c d] where
    [a b] is the upper left corner and
    [c d] is the lower right corner."
-  (reduce
-    (fn [[a b c d] [x y]]
-      [(min a x)
-       (min b y)
-       (max c x)
-       (max d y)])
-    [0 0 0 0]
-    segments))
+  (let [segments (map :points lines)]
+    (reduce
+      (fn [[a b c d] [x1 y1 x2 y2]]
+        [(min a x1 x2)
+         (min b y1 y2)
+         (max c x1 x2)
+         (max d y1 y2)])
+      [0 0 0 0]
+      segments)))
 
 (defn calculate-position-transform
   "Computes the transformation matrix to translate the drawn l system with
@@ -168,53 +172,71 @@
      [0 1 movey]
      [0 0 1    ]]))
 
-(defn transform-point
-  "Multiplies a vector by a transformation matrix."
-  [transform [x y]]
-  (let [transformed (mat/mmul transform [x y 1])]
-    (take 2 transformed)))
+(defn transform-line
+  "Takes a 3x3 transformation matrix and a 4 element vector representing two
+   points that make a line and transforms the points by the matrix."
+  [transform [a b c d]]
+  (let [p1 (mat/mmul transform [a b 1])
+        p2 (mat/mmul transform [c d 1])]
+    (concat (take 2 p1) (take 2 p2))))
 
-;; TODO: combine transforms to one multiplication.
+(defn transform-segment
+  "Takes a sequence of matrix transformations and a turtle line segment map
+   and transforms the segment through all the transformations."
+  [transforms segment]
+  (letfn [(reducer [seg tran]
+            (update-in seg [:points] #(transform-line tran %)))]
+    (reduce reducer segment transforms)))
+
+;; TODO: Put color choices into turtle-state
+(def colors
+  {-1 [0 0 0]        ;black
+   0 [136 89 61]     ;brown
+   1 [36 173 29]     ;light green
+   2 [107 255 107]}) ;dark green
+
 (defn processing-draw-turtle
   "Draws the l system turtle in processing. Must be called from the processing
    thread in a setup or draw function."
   [turtle-state x y width height]
   (let [segments (:segments turtle-state)
-        ;; Move to [0 0]
         bounding-box (calculate-bounding-box segments)
         move-transform (calculate-position-transform x y bounding-box)
-        moved-points (map #(transform-point move-transform %) segments)
-        ;; Scale to display size
-        new-bounds (calculate-bounding-box moved-points)
+        new-bounds (transform-line move-transform bounding-box)
         scale-transform (calculate-scaling-transform width height new-bounds)
-        scaled-points (map #(transform-point scale-transform %) moved-points)
-        ;; Center in viewport.
-        final-bounds (calculate-bounding-box scaled-points)
+        final-bounds (transform-line scale-transform new-bounds)
         center-transform (calculate-centering-transform width height
                                                         final-bounds)
-        points (map #(transform-point center-transform %) scaled-points)]
-    ;; Scale the viewport so that this drawing will be centered.
-    (doseq [[[a b] [c d]] (partition 2 points)]
-      (q/line a b c d))))
+        transforms [move-transform scale-transform center-transform]
+        lines (map #(transform-segment transforms %) segments)]
+    (doseq [line lines]
+      (apply q/line (:points line))
+      (q/stroke
+        (apply q/color (get colors (:color line)))))))
 
 (defn display
   "Displays the l system string as a 2d turtle graphics interpretation of the
    characters in a processing sketch. Returns the processing sketch.
    "
   [s angle]
-  (letfn [(setup []
-                 (q/smooth)
-                 (q/background 200)
-                 (let [turtle
-                       (reduce
-                         #(interpret %2 %1)
-                         (base-turtle-state angle)
-                         (parse-string s))]
-                   (processing-draw-turtle turtle 0 0 798 598)))]
-    (q/sketch
-      :title "L System"
-      :setup setup
-      :size [800 600])))
+  (let [t (atom nil)]
+    (letfn [(setup []
+                   (q/smooth)
+                   (q/background 200))
+            (draw []
+                  (q/background 200)
+                  (if-let [turtle @t]
+                    (processing-draw-turtle turtle 0 0 798 598)
+                    (q/text "Calculating" 10 10)))]
+      (future
+        (reset! t (reduce #(interpret %2 %1)
+                          (base-turtle-state angle)
+                          (parse-string s))))
+      (q/sketch
+        :title "L System"
+        :setup setup
+        :draw draw
+        :size [800 600]))))
 
 (defn display-with-steps
   "Takes the initial string input, a map of substitution rules, the number
@@ -251,7 +273,7 @@
   ;; Neat pentagons star
   (display-with-steps "F-F-F-F-F" {"F" "F-F++F+F-F-F"} 4 72)
 
-  ;; Tree with colors TODO: color support
-  (display-with-steps "F" {"F" "C0FF-[C1-F+F+F]+[C2+F-F-F]"} 5 22)
+  ;; Tree with colors
+  (display-with-steps "F" {"F" "C0FF-[C1-F+F+F]+[C2+F-F-F]"} 4 22)
 
 )
