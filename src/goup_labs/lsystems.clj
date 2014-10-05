@@ -48,22 +48,11 @@
 (defn parse-string
   "Parses the lsystem string into turtle commands."
   [str]
-  (insta/transform
-    {:CASE wrap-op
-     :set-color (fn [_ n] [:set-color (Integer/parseInt n)])}
-    (turtle-parser str)))
-
-(defn turtle-case
-  "Returns the turtle graphics command for a given character."
-  [char _]
-  (condp = char
-    \[ :push-stack
-    \] :pop-stack
-    \+ :rotate-counterclockwise
-    \- :rotate-clockwise
-    \F :draw-line-segment
-    \f :move-line-segment
-    :no-op))
+  (rest
+    (insta/transform
+      {:CASE      wrap-op
+       :set-color (fn [_ n] [:set-color (Integer/parseInt n)])}
+      (turtle-parser str))))
 
 (defn turtle-line-segment
   "Turtle graphics line segment helper."
@@ -86,7 +75,7 @@
     (update-in turtle-state [:direction] rotate theta)))
 
 (defmulti interpret
-  "Takes a character and a turtle-graphics state and returns the next
+  "Takes a command and a turtle-graphics state and returns the next
    turtle graphics state. Characters are interpreted via the following
    rules.
 
@@ -96,7 +85,7 @@
    - means rotate clockwise.
    [ means save current state onto stack
    ] means pop last saved state off of stack"
-  turtle-case)
+  (fn [op _] (:op op)))
 
 (defmethod interpret :draw-line-segment [_ turtle-state]
   (turtle-line-segment true turtle-state))
@@ -121,6 +110,11 @@
       :position position
       :direction direction
       :stack (rest stack))))
+
+(defmethod interpret :set-color [{:keys [color]} turtle-state]
+  ;TODO
+  turtle-state
+  )
 
 (defmethod interpret :no-op [_ turtle-state]
   turtle-state)
@@ -215,7 +209,7 @@
                        (reduce
                          #(interpret %2 %1)
                          (base-turtle-state angle)
-                         s)]
+                         (parse-string s))]
                    (processing-draw-turtle turtle 0 0 798 598)))]
     (q/sketch
       :title "L System"
